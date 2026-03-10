@@ -1,0 +1,12 @@
+2026-03-02 22:58:44 [INFO] ============================================================
+2026-03-02 22:58:44 [INFO]   Pipeline de Treinamento — NEU-DET / YOLOv8
+2026-03-02 22:58:44 [INFO] ============================================================
+2026-03-02 22:58:44 [INFO] Modelo base      : yolov8s.pt
+2026-03-02 22:58:44 [INFO] Dataset YAML     : C:\Users\maria\OneDrive\Área de Trabalho\Engenharia-IFES\TCC\archive_det\training\dataset.yaml
+2026-03-02 22:58:44 [INFO] Hiperparâmetros  : C:\Users\maria\OneDrive\Área de Trabalho\Engenharia-IFES\TCC\archive_det\training\configs\hyperparameters.yaml
+2026-03-02 22:58:44 [INFO] Épocas máximas   : 100
+2026-03-02 22:58:44 [INFO] Early stopping   : patience=20
+2026-03-02 22:58:44 [INFO] Batch size       : 16
+2026-03-02 22:58:44 [INFO] Resolução entrada: 640px
+2026-03-02 22:58:44 [INFO] Mosaic           : 0.0 (0.0 = desabilitado)
+2026-03-02 22:58:50 [INFO] Iniciando treinamento → pasta de saída: neu_det_20260302_225850

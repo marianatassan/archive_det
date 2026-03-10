@@ -1,0 +1,19 @@
+# Dataset: NEU-DET — Detecção de Defeitos em Aço Laminado a Quente
+# Re-split estratificado por classe: 70% treino / 15% val / 15% teste
+# Gerado automaticamente por convert_dataset.py
+#
+# Classes (ID → nome):
+#   0: crazing
+#   1: inclusion
+#   2: patches
+#   3: pitted_surface
+#   4: rolled-in_scale
+#   5: scratches
+
+path: C:/Users/maria/OneDrive/Área de Trabalho/Engenharia-IFES/TCC/archive_det/training/dataset
+train: images/train
+val:   images/val
+test:  images/test
+
+nc: 6
+names: [crazing, inclusion, patches, pitted_surface, rolled-in_scale, scratches]

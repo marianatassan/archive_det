@@ -1,0 +1,129 @@
+# =============================================================================
+# Hiperparâmetros de Treinamento — NEU-DET / YOLOv8
+# Projeto: Detecção de Defeitos Superficiais em Aço Laminado a Quente
+# TCC — Engenharia de Controle e Automação / IFES
+# =============================================================================
+#
+# Este arquivo centraliza todas as decisões de configuração do treinamento.
+# Cada parâmetro está documentado com justificativa técnica.
+# Para reproduzir os experimentos, não modifique este arquivo — crie uma cópia.
+#
+# Referência: https://docs.ultralytics.com/modes/train/#train-settings
+
+# -----------------------------------------------------------------------------
+# Modelo base (transfer learning)
+# -----------------------------------------------------------------------------
+# yolov8s.pt: variante Small, ~11M parâmetros, pré-treinado no COCO
+# Justificativa: dataset pequeno (1.260 imagens de treino) + transfer learning
+# é a única estratégia viável para evitar underfitting.
+# Alternativas: yolov8n.pt (mais rápido, menos preciso), yolov8m.pt (mais
+# preciso, maior risco de overfitting com 1.260 amostras).
+model: yolov8s.pt
+
+# -----------------------------------------------------------------------------
+# Resolução de entrada
+# -----------------------------------------------------------------------------
+# 640: resolução padrão do YOLOv8, para a qual o backbone e as âncoras
+# implícitas foram calibrados durante o pré-treino no COCO.
+# Nota: as imagens originais têm 200×200 px — o upscale é feito internamente
+# pelo DataLoader com interpolação bilinear, sem perda de informação estrutural.
+#
+# Alternativa para execução em CPU com recursos limitados: 416 ou 512
+imgsz: 640
+
+# -----------------------------------------------------------------------------
+# Batch size
+# -----------------------------------------------------------------------------
+# 16: equilíbrio entre estabilidade do gradiente e uso de memória.
+# Reduzir para 8 se houver OOM (Out Of Memory) em GPU com VRAM < 4 GB ou CPU.
+batch: 16
+
+# -----------------------------------------------------------------------------
+# Duração do treinamento e early stopping
+# -----------------------------------------------------------------------------
+# epochs=100: suficiente para convergência com 1.260 amostras e batch=16
+# (~79 iterações por época). Monitorado pelo early stopping.
+epochs: 100
+
+# patience=20: interrompe o treino se mAP@0.5 na validação não melhorar
+# por 20 épocas consecutivas. Previne overfitting em dataset pequeno.
+patience: 20
+
+# -----------------------------------------------------------------------------
+# Otimizador
+# -----------------------------------------------------------------------------
+# AdamW: versão do Adam com weight decay desacoplado — mais estável que SGD
+# para datasets pequenos com transfer learning.
+optimizer: AdamW
+
+# lr0: learning rate inicial. 0.001 é padrão para fine-tuning com AdamW.
+lr0: 0.001
+
+# lrf: fator multiplicativo final — lr final = lr0 * lrf = 0.00001
+# O scheduler cosine annealing decai de lr0 até lr0*lrf ao longo das épocas.
+lrf: 0.01
+
+# momentum: beta1 do AdamW (controla média móvel dos gradientes)
+momentum: 0.937
+
+# weight_decay: regularização L2 para penalizar pesos grandes
+weight_decay: 0.0005
+
+# -----------------------------------------------------------------------------
+# Warm-up
+# -----------------------------------------------------------------------------
+# Nas primeiras warmup_epochs, o learning rate cresce linearmente de 0 até lr0.
+# Evita atualizações instáveis logo no início do fine-tuning.
+warmup_epochs: 3.0
+warmup_momentum: 0.8
+
+# -----------------------------------------------------------------------------
+# Augmentation — ajustada para inspeção industrial
+# -----------------------------------------------------------------------------
+#
+# DESABILITADAS (contexto industrial):
+#   mosaic=0.0   → combina 4 imagens, criando contextos irreais para defeitos
+#   mixup=0.0    → mesclagem de imagens igualmente inadequada para este domínio
+#   copy_paste=0 → copia objetos entre imagens (idem)
+#
+# MANTIDAS (plausíveis no ambiente de inspeção):
+#   flipud/fliplr → defeitos são invariantes à orientação na linha de produção
+#   hsv_v         → simula variações de iluminação da câmera industrial
+#   degrees       → rotações leves plausíveis no posicionamento da peça
+#   scale         → variação de distância câmera-peça
+#   translate     → pequenos deslocamentos do defeito no frame
+
+mosaic:      0.0    # DESABILITADO — contexto irreal
+mixup:       0.0    # DESABILITADO — contexto irreal
+copy_paste:  0.0    # DESABILITADO
+
+hsv_h:       0.015  # Jitter de matiz (mínimo, imagens em escala de cinza)
+hsv_s:       0.7    # Jitter de saturação
+hsv_v:       0.4    # Jitter de brilho — principal augmentation de iluminação
+
+degrees:     10.0   # Rotação máxima ±10°
+translate:   0.1    # Translação ±10% da dimensão da imagem
+scale:       0.3    # Variação de escala ±30%
+shear:       0.0    # Sem cisalhamento (não plausível para superfícies planas)
+perspective: 0.0    # Sem distorção de perspectiva
+
+flipud:      0.5    # Flip vertical com probabilidade 50%
+fliplr:      0.5    # Flip horizontal com probabilidade 50%
+
+# -----------------------------------------------------------------------------
+# Reprodutibilidade
+# -----------------------------------------------------------------------------
+# seed=42 e deterministic=true garantem que o experimento é reproduzível,
+# requisito essencial para publicação acadêmica.
+seed: 42
+deterministic: true
+
+# -----------------------------------------------------------------------------
+# Salvamento
+# -----------------------------------------------------------------------------
+# save=true     → salva best.pt e last.pt ao final do treinamento
+# save_period=-1 → não salva checkpoint a cada época (economiza disco)
+save: true
+save_period: -1
+
+verbose: true
