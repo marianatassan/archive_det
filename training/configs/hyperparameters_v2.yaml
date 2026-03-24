@@ -1,0 +1,96 @@
+# =============================================================================
+# Hiperparâmetros de Treinamento — NEU-DET / YOLOv8 — Experimento v2
+# Projeto: Detecção de Defeitos Superficiais em Aço Laminado a Quente
+# TCC — Engenharia de Controle e Automação / IFES
+# =============================================================================
+#
+# Alterações em relação ao experimento v1 (hyperparameters.yaml):
+#
+#   1. model: yolov8s.pt → yolov8m.pt
+#      Justificativa: YOLOv8m tem 25M params vs 11M do Small. Com as classes
+#      difíceis (crazing mAP@0.5=0.39, rolled-in_scale=0.57) o modelo Small
+#      demonstrou capacidade representacional insuficiente. O risco de
+#      overfitting com dataset pequeno é mitigado pelo transfer learning e
+#      pelo early stopping.
+#
+#   2. batch: 8 → 4
+#      Justificativa: YOLOv8m ocupa ~2x mais VRAM que o Small.
+#      Com GTX 1050 (4 GB), batch=4 garante margem de segurança.
+#
+#   3. mosaic: 0.0 → 0.5
+#      Justificativa: crazing e rolled-in_scale têm instâncias dispersas e
+#      poucas por imagem. Mosaic aumenta a densidade de instâncias por batch
+#      sem criar contextos impossíveis — as 4 sub-imagens são sempre imagens
+#      reais do dataset. Probabilidade 0.5 (não 1.0) para preservar parte
+#      do contexto original.
+#
+#   4. hsv_v: 0.4 → 0.6
+#      Justificativa: crazing é sensível a variações de iluminação —
+#      o padrão de textura sutil se torna mais visível ou invisível conforme
+#      a intensidade luminosa. Aumentar o jitter de brilho força o modelo a
+#      aprender features robustas independentes da condição de iluminação.
+#
+#   5. patience: 20 → 30
+#      Justificativa: com mosaic ativado, as primeiras épocas têm maior
+#      variância nas métricas de validação. Patience=30 evita interrupção
+#      prematura durante a fase de adaptação ao novo regime de augmentação.
+#
+# Referência v1: training/results/neu_det_20260302_225850/
+#   mAP@0.5 val=0.698 | mAP@0.5 test=0.733
+# =============================================================================
+
+# Modelo base
+model: yolov8m.pt
+
+# Resolução de entrada
+imgsz: 640
+
+# Batch size — reduzido para acomodar YOLOv8m na GTX 1050 (4 GB VRAM)
+batch: 4
+
+# Duração e early stopping
+epochs: 100
+patience: 30
+
+# Otimizador
+optimizer: AdamW
+lr0: 0.001
+lrf: 0.01
+momentum: 0.937
+weight_decay: 0.0005
+
+# Warm-up
+warmup_epochs: 3.0
+warmup_momentum: 0.8
+
+# Augmentation
+mosaic:      0.5    # ATIVADO — aumenta densidade de instâncias por batch
+mixup:       0.0    # DESABILITADO
+copy_paste:  0.0    # DESABILITADO
+
+hsv_h:       0.015
+hsv_s:       0.7
+hsv_v:       0.6    # Aumentado de 0.4 para robustez à iluminação
+
+degrees:     10.0
+translate:   0.1
+scale:       0.3
+shear:       0.0
+perspective: 0.0
+
+flipud:      0.5
+fliplr:      0.5
+
+# Reprodutibilidade
+seed: 42
+deterministic: true
+
+# Salvamento
+save: true
+save_period: -1
+
+verbose: true
+
+# workers=0: desativa multiprocessing no DataLoader
+# Necessário no Windows para evitar esgotamento de pagefile em treinos longos
+workers: 0

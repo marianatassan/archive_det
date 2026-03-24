@@ -1,0 +1,14 @@
+2026-03-11 20:24:27 [INFO] ============================================================
+2026-03-11 20:24:27 [INFO]   Retomando Treinamento Interrompido — NEU-DET / YOLOv8
+2026-03-11 20:24:27 [INFO] ============================================================
+2026-03-11 20:24:27 [INFO] Checkpoint : C:\Users\sadbr\Documents\defects_detection\archive_det\training\results\neu_det_20260302_225850\weights\last.pt
+2026-03-11 20:24:27 [INFO] Run        : neu_det_20260302_225850
+2026-03-11 23:51:12 [INFO] Treinamento retomado e finalizado.
+2026-03-11 23:51:12 [INFO] Modelo copiado: C:\Users\sadbr\Documents\defects_detection\archive_det\training\models\best.pt
+2026-03-11 23:51:12 [INFO] Modelo copiado: C:\Users\sadbr\Documents\defects_detection\archive_det\training\models\last.pt
+2026-03-11 23:51:12 [INFO] ============================================================
+2026-03-11 23:51:12 [INFO]   Pipeline concluído com sucesso!
+2026-03-11 23:51:12 [INFO]   Resultados : C:\Users\sadbr\Documents\defects_detection\archive_det\training\results\neu_det_20260302_225850
+2026-03-11 23:51:12 [INFO]   Modelos    : C:\Users\sadbr\Documents\defects_detection\archive_det\training\models
+2026-03-11 23:51:12 [INFO]   Próximo passo: python evaluate.py
+2026-03-11 23:51:12 [INFO] ============================================================

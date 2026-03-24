@@ -1,0 +1,106 @@
+# =============================================================================
+# Hiperparâmetros de Treinamento — NEU-DET / YOLOv8 — Experimento v13
+# Projeto: Detecção de Defeitos Superficiais em Aço Laminado a Quente
+# TCC — Engenharia de Controle e Automação / IFES
+# =============================================================================
+#
+# Base: v12 (melhor resultado, mAP@0.5 teste=0.755 / +TTA=0.763)
+#
+# Única mudança em relação ao v12:
+#   multi_scale: 0.5 → 0.3
+#
+# Motivação:
+#   v12 com multi_scale=0.5 variou o imgsz no intervalo [448, 1344]px.
+#   O resultado mostrou queda de precision (0.731→0.699) e leve regressão
+#   em classes já bem aprendidas (patches, inclusion), indicando que a
+#   variação de escala foi agressiva demais.
+#
+#   multi_scale=0.3 restringe o intervalo para [627, 1165]px — variação
+#   de ±30% em vez de ±50%. O modelo continua aprendendo invariância de
+#   escala para crazing e rolled-in_scale, mas sem expor o backbone a
+#   escalas tão extremas (448px é muito próximo do tamanho original de
+#   200×200px). Expectativa: melhor equilíbrio entre P e R, com
+#   manutenção ou ganho no mAP@0.5:95.
+#
+# Todos os outros parâmetros: idênticos ao v12.
+#
+# Referências (mAP@0.5 teste, imgsz=896):
+#   v8  (multi_scale=0.0):            0.744  ← baseline
+#   v12 (multi_scale=0.5):            0.755
+#   v12 (multi_scale=0.5) + TTA:      0.763  ← melhor atual
+#
+# Hardware alvo: Google Colab — NVIDIA L4 (24 GB VRAM)
+# Estimativa: ~3h para 300 épocas com batch=32 e imgsz=896 na L4
+# =============================================================================
+
+# Modelo base
+model: yolov8s.pt
+
+# Resolução de entrada
+imgsz: 896
+
+# Batch size
+batch: 32
+
+# Duração e early stopping
+epochs: 300
+patience: 60
+
+# Otimizador
+optimizer: AdamW
+lr0: 0.001
+lrf: 0.005
+momentum: 0.937
+weight_decay: 0.0005
+
+# Warm-up
+warmup_epochs: 3.0
+warmup_momentum: 0.8
+
+# Pesos da função de loss
+box: 7.5
+cls: 0.7
+dfl: 1.5
+
+# NMS IoU durante treino
+iou: 0.5
+
+# Multi-scale training — reduzido de 0.5 para 0.3
+# Varia imgsz no intervalo [627, 1165]px a cada batch (±30%)
+multi_scale: 0.3
+
+# Augmentation
+mosaic:      0.0
+mixup:       0.0
+copy_paste:  0.0
+auto_augment: ""
+erasing:     0.0
+
+hsv_h:       0.015
+hsv_s:       0.7
+hsv_v:       0.65
+
+degrees:     10.0
+translate:   0.1
+scale:       0.5
+shear:       5.0
+perspective: 0.0005
+
+flipud:      0.5
+fliplr:      0.5
+
+# Dropout
+dropout: 0.0
+
+# Reprodutibilidade
+seed: 42
+deterministic: true
+
+# Salvamento
+save: true
+save_period: -1
+
+verbose: true
+
+# workers=2: Colab roda Linux
+workers: 2

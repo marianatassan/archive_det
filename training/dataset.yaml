@@ -10,7 +10,7 @@
 #   4: rolled-in_scale
 #   5: scratches
 
-path: C:/Users/maria/OneDrive/Área de Trabalho/Engenharia-IFES/TCC/archive_det/training/dataset
+path: C:/Users/sadbr/Documents/defects_detection/archive_det/training/dataset
 train: images/train
 val:   images/val
 test:  images/test

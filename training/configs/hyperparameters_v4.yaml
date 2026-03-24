@@ -1,0 +1,80 @@
+# =============================================================================
+# Hiperparâmetros de Treinamento — NEU-DET / YOLOv8 — Experimento v4
+# Projeto: Detecção de Defeitos Superficiais em Aço Laminado a Quente
+# TCC — Engenharia de Controle e Automação / IFES
+# =============================================================================
+#
+# Objetivo: baseline sem augmentation
+#   Treinar com o dataset original sem nenhuma transformação além do
+#   redimensionamento obrigatório. Permite isolar o desempenho puro do
+#   modelo no dado real, sem interferência de augmentação.
+#   Serve como ponto de referência para avaliar o quanto cada augmentation
+#   contribui (ou prejudica) nos experimentos anteriores.
+#
+# Alterações em relação ao v1 (hyperparameters.yaml):
+#   - Todas as augmentações desabilitadas (flipud, fliplr, hsv, degrees, etc.)
+#   - epochs: 100 → 300
+#   - patience: 20 → 50 (proporcional ao aumento de épocas)
+#   - workers: 0 (fix para pagefile no Windows)
+#
+# Referências anteriores (mAP@0.5 teste):
+#   v1 (YOLOv8s, augmentation parcial):  0.733
+#   v2 (YOLOv8m, mosaic=0.5):            0.726
+#   v3 (YOLOv8m, sem mosaic):            0.721
+# =============================================================================
+
+# Modelo base
+model: yolov8s.pt
+
+# Resolução de entrada
+imgsz: 640
+
+# Batch size
+batch: 8
+
+# Duração e early stopping
+epochs: 300
+patience: 50
+
+# Otimizador
+optimizer: AdamW
+lr0: 0.001
+lrf: 0.01
+momentum: 0.937
+weight_decay: 0.0005
+
+# Warm-up
+warmup_epochs: 3.0
+warmup_momentum: 0.8
+
+# Augmentation — TUDO DESABILITADO
+mosaic:      0.0
+mixup:       0.0
+copy_paste:  0.0
+
+hsv_h:       0.0
+hsv_s:       0.0
+hsv_v:       0.0
+
+degrees:     0.0
+translate:   0.0
+scale:       0.0
+shear:       0.0
+perspective: 0.0
+
+flipud:      0.0
+fliplr:      0.0
+
+# Reprodutibilidade
+seed: 42
+deterministic: true
+
+# Salvamento
+save: true
+save_period: -1
+
+verbose: true
+
+# workers=0: desativa multiprocessing no DataLoader
+# Necessário no Windows para evitar esgotamento de pagefile em treinos longos
+workers: 0

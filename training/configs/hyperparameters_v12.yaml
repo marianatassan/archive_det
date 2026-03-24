@@ -1,0 +1,114 @@
+# =============================================================================
+# Hiperparâmetros de Treinamento — NEU-DET / YOLOv8 — Experimento v12
+# Projeto: Detecção de Defeitos Superficiais em Aço Laminado a Quente
+# TCC — Engenharia de Controle e Automação / IFES
+# =============================================================================
+#
+# Base: v8 (melhor resultado geral, mAP@0.5 teste=0.772)
+#
+# Única mudança em relação ao v8:
+#   multi_scale: 0.0 → 0.5
+#
+# Motivação:
+#   v8 atingiu 0.772 mas crazing (0.461) e rolled-in_scale (0.619) continuam
+#   sendo os gargalos. Ambos são defeitos de textura sensíveis à escala:
+#   - crazing: padrão de trincas finas — a densidade visual muda muito com zoom
+#   - rolled-in_scale: manchas pequenas dispersas — tamanho relativo varia muito
+#
+#   multi_scale=0.5 randomiza o imgsz durante o treino no intervalo
+#   [imgsz×0.5, imgsz×1.5] = [448, 1344]px a cada batch. Isso força o modelo
+#   a aprender features de textura independentes de escala, sem aumentar o
+#   custo de memória da passagem forward máxima (controlado por imgsz=896).
+#
+#   O Ultralytics implementa multi_scale variando o stride do resize a cada
+#   batch (não aumenta o batch size máximo), portanto o uso de VRAM permanece
+#   compatível com a configuração da L4 usada no v8.
+#
+# Todos os outros parâmetros: idênticos ao v8.
+#
+# Referências anteriores (mAP@0.5 teste | F1):
+#   v1  (YOLOv8s, augm. base):           0.733 | 0.691
+#   v2  (YOLOv8m, mosaic=0.5):           0.726 | 0.663
+#   v3  (YOLOv8m, sem mosaic):           0.721 | 0.690
+#   v4  (YOLOv8s, sem augmentation):     ~0.57 | ~0.57
+#   v5  (YOLOv8s, imgsz=768, b=6):       0.769 | 0.743
+#   v6  (YOLOv8s, imgsz=896, b=32):      0.767 | 0.729
+#   v7  (YOLOv8s, imgsz=768, dropout):   0.757 | 0.737
+#   v8  (YOLOv8s, imgsz=896, iou=0.5):  0.772 | —      ← base
+#
+# Hardware alvo: Google Colab — NVIDIA L4 (24 GB VRAM)
+# Estimativa: ~3h para 300 épocas com batch=32 e imgsz=896 na L4
+# =============================================================================
+
+# Modelo base
+model: yolov8s.pt
+
+# Resolução de entrada
+imgsz: 896
+
+# Batch size
+batch: 32
+
+# Duração e early stopping
+epochs: 300
+patience: 60
+
+# Otimizador
+optimizer: AdamW
+lr0: 0.001
+lrf: 0.005
+momentum: 0.937
+weight_decay: 0.0005
+
+# Warm-up
+warmup_epochs: 3.0
+warmup_momentum: 0.8
+
+# Pesos da função de loss
+box: 7.5
+cls: 0.7
+dfl: 1.5
+
+# NMS IoU durante treino
+iou: 0.5
+
+# Multi-scale training — NOVO em relação ao v8
+# Varia imgsz no intervalo [448, 1344]px a cada batch
+# Força invariância de escala para crazing e rolled-in_scale
+multi_scale: 0.5
+
+# Augmentation
+mosaic:      0.0
+mixup:       0.0
+copy_paste:  0.0
+auto_augment: ""
+erasing:     0.0
+
+hsv_h:       0.015
+hsv_s:       0.7
+hsv_v:       0.65
+
+degrees:     10.0
+translate:   0.1
+scale:       0.5
+shear:       5.0
+perspective: 0.0005
+
+flipud:      0.5
+fliplr:      0.5
+
+# Dropout
+dropout: 0.0
+
+# Reprodutibilidade
+seed: 42
+deterministic: true
+
+# Salvamento
+save: true
+save_period: -1
+
+verbose: true
+
+# workers=2: Colab roda Linux
+workers: 2

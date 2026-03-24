@@ -1,0 +1,129 @@
+# =============================================================================
+# Hiperparâmetros de Treinamento — NEU-DET / YOLOv8 — Experimento v7
+# Projeto: Detecção de Defeitos Superficiais em Aço Laminado a Quente
+# TCC — Engenharia de Controle e Automação / IFES
+# =============================================================================
+#
+# Base: v5 (melhor resultado geral, mAP@0.5 teste=0.769, F1=0.743)
+#
+# Problema identificado nos experimentos anteriores:
+#   - crazing e rolled-in_scale consistentemente abaixo das demais classes
+#   - causa principal: textura sutil, baixo contraste com background
+#   - v5 usou batch=6 no Colab T4 — subutilizou a GPU disponível
+#
+# Alterações em relação ao v5:
+#
+#   1. batch: 6 → 48
+#      v5 rodou no Colab T4 (15GB) com batch=6, desperdiçando VRAM.
+#      v7 roda na L4 (24GB). batch=48 com imgsz=768 usa ~18GB — seguro.
+#      Batches maiores estabilizam o gradiente, especialmente para classes
+#      com poucos exemplos por batch (crazing, rolled-in_scale).
+#
+#   2. epochs: 200 → 300 | patience: 40 → 60
+#      v6 com 300 épocas atingiu melhor resultado na época 255 — havia
+#      margem além das 200. Patience proporcional ao aumento de épocas.
+#
+#   3. warmup_epochs: 3.0 → 5.0
+#      Warmup mais longo beneficia batches maiores — permite que o
+#      learning rate suba mais gradualmente antes de bater lr0 completo.
+#
+#   4. scale: 0.3 → 0.4
+#      v6 usou scale=0.4 e obteve rolled-in_scale=0.636 vs 0.619 do v5.
+#      Variação de escala maior força o modelo a detectar defeitos em
+#      diferentes tamanhos relativos — relevante para rolled-in_scale.
+#
+#   5. hsv_v: 0.5 → 0.6
+#      Jitter de brilho mais agressivo para forçar o modelo a aprender
+#      features de textura robustas à iluminação — beneficia diretamente
+#      crazing e rolled-in_scale, cujo contraste com o fundo é baixo.
+#
+#   6. dropout: 0.0 → 0.1
+#      Regularização leve para reduzir overfitting com dataset pequeno
+#      (1.260 imagens de treino). Dropout no head de detecção força o
+#      modelo a aprender representações mais distribuídas — especialmente
+#      útil para classes onde o modelo pode estar memorizando padrões.
+#
+# Mantido em relação ao v5:
+#   - model: yolov8s.pt (YOLOv8m nunca superou o Small neste dataset)
+#   - imgsz: 768 (confirmado superior a 640; 896 não trouxe ganho)
+#   - mosaic=0.0 (prejudica classes de textura — confirmado por v2/v3)
+#   - copy_paste=0.0 (efeito neutro — v6 com 0.15 não superou v5)
+#   - box=7.5 (v5 foi superior a v6 que usou 9.0)
+#   - cls=0.7 (v5 foi superior a v6 que usou 0.6)
+#   - shear=5.0, perspective=0.0005 (benefício confirmado no v5)
+#   - lr0=0.001, lrf=0.005, optimizer=AdamW
+#   - flipud=0.5, fliplr=0.5, degrees=10, translate=0.1
+#
+# Referências anteriores (mAP@0.5 teste):
+#   v1 (YOLOv8s, augm. base):         0.733
+#   v2 (YOLOv8m, mosaic=0.5):         0.726
+#   v3 (YOLOv8m, sem mosaic):         0.721
+#   v4 (YOLOv8s, sem augmentation):   ~0.57
+#   v5 (YOLOv8s, imgsz=768):          0.769  ← base
+#   v6 (YOLOv8s, imgsz=896, T4 b=32): 0.767
+#
+# Hardware alvo: Google Colab — NVIDIA L4 (24 GB VRAM)
+# =============================================================================
+
+# Modelo base
+model: yolov8s.pt
+
+# Resolução de entrada — confirmada superior a 640 pelo v5
+imgsz: 768
+
+# Batch size — otimizado para L4 (24GB): imgsz=768 + batch=48 ≈ 18GB
+batch: 48
+
+# Duração e early stopping
+epochs: 300
+patience: 60
+
+# Otimizador
+optimizer: AdamW
+lr0: 0.001
+lrf: 0.005
+momentum: 0.937
+weight_decay: 0.0005
+
+# Warm-up — mais longo para estabilizar gradientes com batch grande
+warmup_epochs: 5.0
+warmup_momentum: 0.8
+
+# Pesos da função de loss
+box: 7.5
+cls: 0.7   # penalização maior na classificação — beneficia classes difíceis
+dfl: 1.5
+
+# Regularização
+dropout: 0.1   # regularização leve contra overfitting em dataset pequeno
+
+# Augmentation
+mosaic:      0.0    # DESABILITADO — prejudica classes dependentes de textura
+mixup:       0.0    # DESABILITADO
+copy_paste:  0.0    # DESABILITADO — efeito neutro confirmado (v5 vs v6)
+
+hsv_h:       0.015
+hsv_s:       0.7
+hsv_v:       0.6    # aumentado: força robustez à iluminação para texturas sutis
+
+degrees:     10.0
+translate:   0.1
+scale:       0.4    # aumentado: melhora detecção em diferentes escalas
+shear:       5.0
+perspective: 0.0005
+
+flipud:      0.5
+fliplr:      0.5
+
+# Reprodutibilidade
+seed: 42
+deterministic: true
+
+# Salvamento
+save: true
+save_period: -1
+
+verbose: true
+
+# workers=2: Colab roda Linux — sem problema de pagefile do Windows
+workers: 2

@@ -1,18 +1,18 @@
 task: detect
 mode: train
-model: C:\Users\maria\OneDrive\Área de Trabalho\Engenharia-IFES\TCC\archive_det\training\results\neu_det_20260302_225850\weights\last.pt
-data: C:\Users\maria\OneDrive\Área de Trabalho\Engenharia-IFES\TCC\archive_det\training\dataset.yaml
+model: C:\Users\sadbr\Documents\defects_detection\archive_det\training\results\neu_det_20260302_225850\weights\last.pt
+data: C:/Users/sadbr/Documents/defects_detection/archive_det/training/dataset.yaml
 epochs: 100
 time: null
 patience: 20
-batch: 16
+batch: 8
 imgsz: 640
 save: true
 save_period: -1
 cache: false
-device: cpu
+device: '0'
 workers: 0
-project: C:\Users\maria\OneDrive\Área de Trabalho\Engenharia-IFES\TCC\archive_det\training\results
+project: C:/Users/sadbr/Documents/defects_detection/archive_det/training/results
 name: neu_det_20260302_225850
 exist_ok: false
 pretrained: true
@@ -24,7 +24,7 @@ single_cls: false
 rect: false
 cos_lr: false
 close_mosaic: 10
-resume: C:\Users\maria\OneDrive\Área de Trabalho\Engenharia-IFES\TCC\archive_det\training\results\neu_det_20260302_225850\weights\last.pt
+resume: C:\Users\sadbr\Documents\defects_detection\archive_det\training\results\neu_det_20260302_225850\weights\last.pt
 amp: true
 fraction: 1.0
 profile: false
@@ -106,4 +106,4 @@ auto_augment: randaugment
 erasing: 0.4
 cfg: null
 tracker: botsort.yaml
-save_dir: C:\Users\maria\OneDrive\Área de Trabalho\Engenharia-IFES\TCC\archive_det\training\results\neu_det_20260302_225850
+save_dir: C:\Users\sadbr\Documents\defects_detection\archive_det\training\results\neu_det_20260302_225850

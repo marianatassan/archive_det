@@ -16,11 +16,13 @@ Saídas geradas:
 
 Uso:
   python evaluate.py
+  python evaluate.py --model results/neu_det_20260322_214014/weights/best.pt
 
 Pré-requisito:
   Executar train.py antes deste script.
 """
 
+import argparse
 import json
 import sys
 from datetime import datetime
@@ -43,6 +45,25 @@ MODELS_DIR   = TRAINING_DIR / "models"
 RESULTS_DIR  = TRAINING_DIR / "results"
 BEST_MODEL   = MODELS_DIR / "best.pt"
 
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Avaliação do YOLOv8 no conjunto de teste — NEU-DET"
+    )
+    parser.add_argument(
+        "--model",
+        type=str,
+        default=None,
+        help="Caminho para o best.pt (relativo a training/ ou absoluto). "
+             "Padrão: training/models/best.pt",
+    )
+    parser.add_argument(
+        "--tta",
+        action="store_true",
+        help="Ativa Test-Time Augmentation (multi-escala + flips na inferência)",
+    )
+    return parser.parse_args()
+
 CLASSES = [
     "crazing",
     "inclusion",
@@ -56,12 +77,22 @@ CLASSES = [
 # Funções principais
 # ---------------------------------------------------------------------------
 
-def validate_paths():
+def resolve_model_path(model_arg: str | None) -> Path:
+    """Resolve o caminho do modelo: argumento CLI > training/models/best.pt."""
+    if model_arg is None:
+        return BEST_MODEL
+    p = Path(model_arg)
+    if not p.is_absolute():
+        p = TRAINING_DIR / p
+    return p.resolve()
+
+
+def validate_paths(model_path: Path):
     """Verifica a existência dos arquivos necessários para avaliação."""
     errors = []
 
-    if not BEST_MODEL.exists():
-        errors.append(f"Modelo não encontrado: {BEST_MODEL}")
+    if not model_path.exists():
+        errors.append(f"Modelo não encontrado: {model_path}")
     if not DATASET_YAML.exists():
         errors.append(f"dataset.yaml não encontrado: {DATASET_YAML}")
 
@@ -72,7 +103,7 @@ def validate_paths():
         sys.exit(1)
 
 
-def run_evaluation() -> tuple:
+def run_evaluation(model_path: Path, tta: bool = False) -> tuple:
     """
     Executa a avaliação do modelo best.pt no split de teste.
 
@@ -83,18 +114,21 @@ def run_evaluation() -> tuple:
     Returns:
         (metrics, run_name)
     """
-    print(f"\n[INFO] Modelo    : {BEST_MODEL}")
+    print(f"\n[INFO] Modelo    : {model_path}")
     print(f"[INFO] Dataset   : {DATASET_YAML}")
-    print(f"[INFO] Split     : test\n")
+    print(f"[INFO] Split     : test")
+    print(f"[INFO] TTA       : {'ativado' if tta else 'desativado'}\n")
 
-    model    = YOLO(str(BEST_MODEL))
+    model    = YOLO(str(model_path))
     run_name = f"eval_test_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
     metrics = model.val(
         data    = str(DATASET_YAML),
         split   = "test",       # avalia exclusivamente no conjunto de teste
-        imgsz   = 640,
+        imgsz   = 896,
         batch   = 16,
+        workers = 0,            # Windows: evita erro de multiprocessing no DataLoader
+        augment = tta,          # TTA: inferência em múltiplas escalas + flips
         project = str(RESULTS_DIR),
         name    = run_name,
         verbose = True,
@@ -146,7 +180,7 @@ def print_report(metrics, run_name: str):
     print("=" * 65)
 
 
-def save_metrics_json(metrics, run_name: str):
+def save_metrics_json(metrics, run_name: str, model_path: Path):
     """
     Serializa todas as métricas em metrics_test.json.
 
@@ -162,7 +196,7 @@ def save_metrics_json(metrics, run_name: str):
     report = {
         "meta": {
             "split":     "test",
-            "model":     str(BEST_MODEL),
+            "model":     str(model_path),
             "timestamp": datetime.now().isoformat(),
             "dataset":   str(DATASET_YAML),
         },
@@ -199,17 +233,20 @@ def save_metrics_json(metrics, run_name: str):
 # ---------------------------------------------------------------------------
 
 def main():
+    args       = parse_args()
+    model_path = resolve_model_path(args.model)
+
     print("=" * 65)
     print("  Avaliação no Conjunto de Teste — NEU-DET / YOLOv8")
     print("=" * 65)
 
-    validate_paths()
+    validate_paths(model_path)
 
-    metrics, run_name = run_evaluation()
+    metrics, run_name = run_evaluation(model_path, tta=args.tta)
 
     print_report(metrics, run_name)
 
-    save_metrics_json(metrics, run_name)
+    save_metrics_json(metrics, run_name, model_path)
 
     print("\n  Próximo passo: python inference.py")
 

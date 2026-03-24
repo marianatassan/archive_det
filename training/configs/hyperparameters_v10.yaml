@@ -1,0 +1,62 @@
+# Modelo base
+model: yolov8s.pt
+
+# Resolução de entrada
+imgsz: 896
+
+# Batch size — otimizado para L4 (24GB)
+batch: 32
+
+# Duração e early stopping
+epochs: 300
+patience: 60
+
+# Otimizador
+optimizer: AdamW
+lr0: 0.001
+lrf: 0.005
+momentum: 0.937
+weight_decay: 0.0005
+
+# Warm-up
+warmup_epochs: 3.0
+warmup_momentum: 0.8
+
+# Pesos da função de loss global
+box: 7.5
+cls: 0.7
+dfl: 1.5
+
+# NMS IoU durante treino — suprime boxes sobrepostas (endereça crazing)
+iou: 0.5
+
+# Augmentation
+mosaic:      0.0    # DESABILITADO — prejudica classes de textura
+mixup:       0.0    # DESABILITADO
+copy_paste:  0.0    # DESABILITADO
+
+hsv_h:       0.015
+hsv_s:       0.7
+hsv_v:       0.65   # jitter de brilho agressivo para textura vs background
+
+degrees:     10.0
+translate:   0.1
+scale:       0.4    # reduzido de 0.5: evita zoom-out excessivo para pitted_surface
+shear:       5.0
+perspective: 0.0005
+
+flipud:      0.5
+fliplr:      0.5
+
+# Reprodutibilidade
+seed: 42
+deterministic: true
+
+# Salvamento
+save: true
+save_period: -1
+
+verbose: true
+
+# workers=2: Colab roda Linux — sem problema de pagefile do Windows
+workers: 2

@@ -1,0 +1,81 @@
+# =============================================================================
+# Hiperparâmetros de Treinamento — NEU-DET / YOLOv8 — Experimento v3
+# Projeto: Detecção de Defeitos Superficiais em Aço Laminado a Quente
+# TCC — Engenharia de Controle e Automação / IFES
+# =============================================================================
+#
+# Alterações em relação ao experimento v2 (hyperparameters_v2.yaml):
+#
+#   1. mosaic: 0.5 → 0.0 (DESABILITADO)
+#      Justificativa: a v2 com mosaic perdeu 9.2pp em pitted_surface no teste,
+#      provavelmente porque o mosaic cria sub-imagens em escala reduzida que
+#      prejudicam classes dependentes de padrão de textura em contexto completo.
+#      Esta versão mantém YOLOv8m mas remove o mosaic para isolar o efeito
+#      do modelo maior sem a interferência da augmentação agressiva.
+#
+# Mantido em relação à v2:
+#   - model: yolov8m.pt (25M params)
+#   - batch: 4
+#   - hsv_v: 0.6
+#   - patience: 30
+#
+# Referências anteriores:
+#   v1 (YOLOv8s, sem mosaic): mAP@0.5 val=0.698 | test=0.733
+#   v2 (YOLOv8m, mosaic=0.5): mAP@0.5 val=0.717 | test=0.726
+# =============================================================================
+
+# Modelo base
+model: yolov8m.pt
+
+# Resolução de entrada
+imgsz: 640
+
+# Batch size — reduzido para acomodar YOLOv8m na GTX 1050 (4 GB VRAM)
+batch: 4
+
+# Duração e early stopping
+epochs: 100
+patience: 30
+
+# Otimizador
+optimizer: AdamW
+lr0: 0.001
+lrf: 0.01
+momentum: 0.937
+weight_decay: 0.0005
+
+# Warm-up
+warmup_epochs: 3.0
+warmup_momentum: 0.8
+
+# Augmentation
+mosaic:      0.0    # DESABILITADO — prejudica classes dependentes de textura
+mixup:       0.0    # DESABILITADO
+copy_paste:  0.0    # DESABILITADO
+
+hsv_h:       0.015
+hsv_s:       0.7
+hsv_v:       0.6    # Aumentado de 0.4 para robustez à iluminação
+
+degrees:     10.0
+translate:   0.1
+scale:       0.3
+shear:       0.0
+perspective: 0.0
+
+flipud:      0.5
+fliplr:      0.5
+
+# Reprodutibilidade
+seed: 42
+deterministic: true
+
+# Salvamento
+save: true
+save_period: -1
+
+verbose: true
+
+# workers=0: desativa multiprocessing no DataLoader
+# Necessário no Windows para evitar esgotamento de pagefile em treinos longos
+workers: 0

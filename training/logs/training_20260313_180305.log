@@ -1,0 +1,22 @@
+2026-03-13 18:03:05 [INFO] Usando config: C:\Users\sadbr\Documents\defects_detection\archive_det\training\configs\hyperparameters_v4.yaml
+2026-03-13 18:03:05 [INFO] ============================================================
+2026-03-13 18:03:05 [INFO]   Pipeline de Treinamento — NEU-DET / YOLOv8
+2026-03-13 18:03:05 [INFO] ============================================================
+2026-03-13 18:03:05 [INFO] Modelo base      : yolov8s.pt
+2026-03-13 18:03:05 [INFO] Dataset YAML     : C:\Users\sadbr\Documents\defects_detection\archive_det\training\dataset.yaml
+2026-03-13 18:03:05 [INFO] Hiperparâmetros  : C:\Users\sadbr\Documents\defects_detection\archive_det\training\configs\hyperparameters_v4.yaml
+2026-03-13 18:03:05 [INFO] Épocas máximas   : 300
+2026-03-13 18:03:05 [INFO] Early stopping   : patience=50
+2026-03-13 18:03:05 [INFO] Batch size       : 8
+2026-03-13 18:03:05 [INFO] Resolução entrada: 640px
+2026-03-13 18:03:05 [INFO] Mosaic           : 0.0 (0.0 = desabilitado)
+2026-03-13 18:03:06 [INFO] Iniciando treinamento → pasta de saída: neu_det_20260313_180306
+2026-03-13 23:24:10 [INFO] Treinamento finalizado.
+2026-03-13 23:24:10 [INFO] Modelo copiado: C:\Users\sadbr\Documents\defects_detection\archive_det\training\models\best.pt
+2026-03-13 23:24:10 [INFO] Modelo copiado: C:\Users\sadbr\Documents\defects_detection\archive_det\training\models\last.pt
+2026-03-13 23:24:10 [INFO] ============================================================
+2026-03-13 23:24:10 [INFO]   Pipeline concluído com sucesso!
+2026-03-13 23:24:10 [INFO]   Resultados : C:\Users\sadbr\Documents\defects_detection\archive_det\training\results\neu_det_20260313_180306
+2026-03-13 23:24:10 [INFO]   Modelos    : C:\Users\sadbr\Documents\defects_detection\archive_det\training\models
+2026-03-13 23:24:10 [INFO]   Próximo passo: python evaluate.py
+2026-03-13 23:24:10 [INFO] ============================================================

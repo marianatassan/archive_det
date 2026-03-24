@@ -1,0 +1,144 @@
+# =============================================================================
+# Hiperparâmetros de Treinamento — NEU-DET / YOLOv8 — Experimento v9
+# Projeto: Detecção de Defeitos Superficiais em Aço Laminado a Quente
+# TCC — Engenharia de Controle e Automação / IFES
+# =============================================================================
+#
+# Base: v8 (melhor resultado geral, mAP@0.5 teste=0.772)
+#
+# Problema a resolver:
+#   Classes abaixo de 0.7 em v8:
+#     - CRAZING        mAP@0.5=0.483  (F1 baixo por falsos negativos)
+#     - ROLLED-IN_SCALE mAP@0.5=0.659 (falsos negativos, defeitos pequenos)
+#   Classes acima de 0.7 que não devem regredir:
+#     - INCLUSION      0.798
+#     - PITTED_SURFACE 0.799
+#     - PATCHES        0.942
+#     - SCRATCHES      0.950
+#
+# Estratégia v9: Loss ponderada por classe (Opção 2)
+#
+#   A chave class_weights aplica um multiplicador à BCE loss de classificação
+#   para cada classe, na ordem do dataset.yaml:
+#     [crazing, inclusion, patches, pitted_surface, rolled-in_scale, scratches]
+#
+#   Lógica dos pesos:
+#     - crazing=3.0        → peso alto: mAP=0.483, erro dominante, textura sutil
+#     - inclusion=1.2      → leve reforço: mAP=0.798, próximo do limite
+#     - patches=0.8        → reduzido: mAP=0.942, bem aprendido, libera capacidade
+#     - pitted_surface=1.2 → leve reforço: mAP=0.799, próximo do limite
+#     - rolled-in_scale=2.0 → peso alto: mAP=0.659, defeitos pequenos/espalhados
+#     - scratches=0.8      → reduzido: mAP=0.950, bem aprendido, libera capacidade
+#
+#   O efeito esperado: gradiente maior para crazing e rolled-in_scale força o
+#   modelo a aprender features discriminativas para essas classes sem mudar
+#   nenhum outro hiperparâmetro de treinamento.
+#
+# Alterações em relação ao v8:
+#
+#   1. class_weights: [3.0, 1.2, 0.8, 1.2, 2.0, 0.8]
+#      Única mudança de v8 → v9. Implementado via DetectionTrainer customizado
+#      (make_weighted_trainer) que envolve compute_loss.bce com multiplicador
+#      por classe. Não afeta box loss nem dfl loss.
+#
+#   2. scale: 0.5 → 0.4
+#      v8 com scale=0.5 pode ter prejudicado pitted_surface (defeitos com padrão
+#      de pontos regulares que ficam muito pequenos com zoom-out excessivo).
+#      0.4 é um meio-termo entre v5 (0.3) e v8 (0.5).
+#
+#   3. iou: 0.5 (mantido de v8)
+#      NMS mais agressivo durante treino — continua endereçando múltiplas boxes
+#      sobrepostas de crazing.
+#
+# Mantido em relação ao v8:
+#   - model: yolov8s.pt
+#   - imgsz=896, batch=32, epochs=300, patience=60
+#   - optimizer: AdamW, lr0=0.001, lrf=0.005
+#   - mosaic=0.0, copy_paste=0.0, dropout=0.0
+#   - box=7.5, cls=0.7, dfl=1.5
+#   - hsv_v=0.65, shear=5.0, perspective=0.0005, degrees=10
+#   - flipud=0.5, fliplr=0.5, hsv_h=0.015, hsv_s=0.7
+#   - workers=2 (Colab Linux)
+#
+# Referências (mAP@0.5 teste | F1):
+#   v1 (YOLOv8s, augm. base):           0.733 | 0.691
+#   v5 (YOLOv8s, imgsz=768, b=6):       0.769 | 0.743  ← melhor local
+#   v6 (YOLOv8s, imgsz=896, b=32):      0.767 | 0.729
+#   v7 (YOLOv8s, imgsz=768, dropout):   0.757 | 0.737
+#   v8 (YOLOv8s, imgsz=896, iou=0.5):   0.772 | ?      ← melhor geral
+#
+# Hardware alvo: Google Colab — NVIDIA L4 (24 GB VRAM)
+# Estimativa: ~3h para 300 épocas com batch=32 e imgsz=896 na L4
+# =============================================================================
+
+# Modelo base
+model: yolov8s.pt
+
+# Resolução de entrada
+imgsz: 896
+
+# Batch size — otimizado para L4 (24GB)
+batch: 32
+
+# Duração e early stopping
+epochs: 300
+patience: 60
+
+# Otimizador
+optimizer: AdamW
+lr0: 0.001
+lrf: 0.005
+momentum: 0.937
+weight_decay: 0.0005
+
+# Warm-up
+warmup_epochs: 3.0
+warmup_momentum: 0.8
+
+# Pesos da função de loss global
+box: 7.5
+cls: 0.7
+dfl: 1.5
+
+# NMS IoU durante treino — suprime boxes sobrepostas (endereça crazing)
+iou: 0.5
+
+# Pesos por classe na BCE loss de classificação
+# Ordem: [crazing, inclusion, patches, pitted_surface, rolled-in_scale, scratches]
+# crazing e rolled-in_scale têm pesos altos — classes com mAP abaixo de 0.7
+# patches e scratches têm pesos baixos — já bem aprendidas, liberam capacidade
+class_weights: [3.0, 1.2, 0.8, 1.2, 2.0, 0.8]
+
+# Augmentation
+mosaic:      0.0    # DESABILITADO — prejudica classes de textura
+mixup:       0.0    # DESABILITADO
+copy_paste:  0.0    # DESABILITADO
+
+hsv_h:       0.015
+hsv_s:       0.7
+hsv_v:       0.65   # jitter de brilho agressivo para textura vs background
+
+degrees:     10.0
+translate:   0.1
+scale:       0.4    # reduzido de 0.5: evita zoom-out excessivo para pitted_surface
+shear:       5.0
+perspective: 0.0005
+
+flipud:      0.5
+fliplr:      0.5
+
+# Dropout — desabilitado (v7 confirmou que prejudica com dataset pequeno)
+dropout: 0.0
+
+# Reprodutibilidade
+seed: 42
+deterministic: true
+
+# Salvamento
+save: true
+save_period: -1
+
+verbose: true
+
+# workers=2: Colab roda Linux — sem problema de pagefile do Windows
+workers: 2

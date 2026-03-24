@@ -1,0 +1,112 @@
+# =============================================================================
+# Hiperparâmetros de Treinamento — NEU-DET / YOLOv8 — Experimento v5
+# Projeto: Detecção de Defeitos Superficiais em Aço Laminado a Quente
+# TCC — Engenharia de Controle e Automação / IFES
+# =============================================================================
+#
+# Base: v1 (melhor resultado geral, mAP@0.5 teste=0.733)
+#
+# Alterações em relação ao v1:
+#
+#   1. imgsz: 640 → 768
+#      Justificativa: imagens originais têm apenas 200x200px. Resolução maior
+#      preserva mais detalhes de textura após upscale, potencialmente
+#      beneficiando crazing e rolled-in_scale. Batch reduzido de 8 para 6
+#      para compensar o aumento de VRAM (~1.44x mais memória).
+#
+#   2. batch: 8 → 6
+#      Necessário para acomodar imgsz=768 na GTX 1050 (4 GB VRAM).
+#
+#   3. lrf: 0.01 → 0.005
+#      Learning rate final menor (lr_final = lr0 * lrf = 0.0000050).
+#      Decay mais agressivo no final do treinamento para refinamento fino.
+#
+#   4. epochs: 100 → 200 | patience: 20 → 40
+#      Mais épocas para aproveitar a resolução maior e configurações novas.
+#      Patience proporcional ao aumento de épocas.
+#
+#   5. hsv_v: 0.4 → 0.5
+#      Jitter de brilho ligeiramente maior para robustez à iluminação.
+#
+#   6. shear: 0.0 → 5.0
+#      Cisalhamento leve (±5°) para diversificar geometrias de treinamento.
+#
+#   7. perspective: 0.0 → 0.0005
+#      Distorção de perspectiva mínima, plausível em variações de câmera
+#      na linha de inspeção industrial.
+#
+#   8. cls: 0.5 → 0.7
+#      Peso maior na loss de classificação para penalizar mais erros de
+#      classe — beneficia classes difíceis como crazing e rolled-in_scale.
+#
+# Mantido em relação ao v1:
+#   - model: yolov8s.pt (11M params)
+#   - mosaic=0.0 (confirmado prejudicial por v2 e v3)
+#   - lr0=0.001, optimizer=AdamW
+#   - flipud=0.5, fliplr=0.5, degrees=10, scale=0.3, translate=0.1
+#
+# Referências anteriores (mAP@0.5 teste):
+#   v1 (YOLOv8s, augm. customizada): 0.733  ← base
+#   v2 (YOLOv8m, mosaic=0.5):        0.726
+#   v3 (YOLOv8m, sem mosaic):        0.721
+#   v4 (YOLOv8s, sem augmentation):  ~0.57
+# =============================================================================
+
+# Modelo base
+model: yolov8s.pt
+
+# Resolução de entrada — aumentada para preservar detalhes de textura
+imgsz: 896
+
+# Batch size — reduzido para acomodar imgsz=768 na GTX 1050 (4 GB VRAM)
+batch: 32
+
+# Duração e early stopping
+epochs: 300
+patience: 60
+
+# Otimizador
+optimizer: AdamW
+lr0: 0.001
+lrf: 0.005
+momentum: 0.937
+weight_decay: 0.0005
+
+# Warm-up
+warmup_epochs: 5.0
+warmup_momentum: 0.8
+
+# Pesos da função de loss
+box: 9.0
+cls: 0.6   # aumentado de 0.5 para penalizar mais erros de classificação
+dfl: 1.5
+
+# Augmentation
+mosaic:      0.0    # DESABILITADO — prejudica classes dependentes de textura
+mixup:       0.0    # DESABILITADO
+copy_paste:  0.15    # DESABILITADO
+
+hsv_h:       0.015
+hsv_s:       0.7
+hsv_v:       0.55    # aumentado de 0.4 para robustez à iluminação
+
+degrees:     10.0
+translate:   0.1
+scale:       0.4
+shear:       5.0        # adicionado — diversifica geometria de treinamento
+perspective: 0.0005     # adicionado — distorção mínima de perspectiva
+
+flipud:      0.5
+fliplr:      0.5
+
+# Reprodutibilidade
+seed: 42
+deterministic: true
+
+# Salvamento
+save: true
+save_period: -1
+
+verbose: true
+
+workers: 8

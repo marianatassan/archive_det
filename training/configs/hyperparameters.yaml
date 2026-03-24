@@ -36,7 +36,7 @@ imgsz: 640
 # -----------------------------------------------------------------------------
 # 16: equilíbrio entre estabilidade do gradiente e uso de memória.
 # Reduzir para 8 se houver OOM (Out Of Memory) em GPU com VRAM < 4 GB ou CPU.
-batch: 16
+batch: 8
 
 # -----------------------------------------------------------------------------
 # Duração do treinamento e early stopping
@@ -127,3 +127,7 @@ save: true
 save_period: -1
 
 verbose: true
+
+# workers=0: desativa multiprocessing no DataLoader
+# Necessário no Windows para evitar esgotamento de pagefile em treinos longos
+workers: 0

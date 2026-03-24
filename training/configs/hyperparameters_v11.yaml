@@ -1,0 +1,142 @@
+# =============================================================================
+# Hiperparâmetros de Treinamento — NEU-DET / YOLOv8 — Experimento v11
+# Projeto: Detecção de Defeitos Superficiais em Aço Laminado a Quente
+# TCC — Engenharia de Controle e Automação / IFES
+# =============================================================================
+#
+# Objetivo: superar v8 (mAP@0.5 teste=0.772, avaliado em Normal@640)
+#
+# Estratégia: v8 como base + class_weights (primeira vez testado de forma limpa)
+#
+# Diagnóstico final das classes difíceis (v8):
+#   crazing        mAP@0.5=0.483  Recall=0.475 → 52% dos defeitos perdidos
+#   rolled-in_scale mAP@0.5=0.659  Recall=0.596 → 40% perdidos
+#   O erro dominante é falso negativo (classificado como background),
+#   não confusão entre classes → class_weights atua diretamente nisso.
+#
+# Por que class_weights não foi testado antes:
+#   v9 e v10 rodaram antes da implementação de make_weighted_trainer.
+#   Além disso, ambos tiveram auto_augment=randaugment e erasing=0.4
+#   vazados pelo Ultralytics, o que causou regressão. O train.py agora
+#   bloqueia esses parâmetros explicitamente.
+#
+# Alterações em relação ao v8:
+#
+#   1. class_weights: [2.5, 1.0, 0.8, 1.0, 2.0, 0.8]
+#      Multiplica a BCE loss de classificação por classe:
+#        crazing=2.5        mAP=0.483 — gradiente 2.5x mais forte
+#        inclusion=1.0      mAP=0.798 — neutro (já bom)
+#        patches=0.8        mAP=0.942 — reduzido (excelente, libera capacidade)
+#        pitted_surface=1.0 mAP=0.799 — neutro (já bom)
+#        rolled-in_scale=2.0 mAP=0.659 — gradiente 2x mais forte
+#        scratches=0.8      mAP=0.950 — reduzido (excelente, libera capacidade)
+#
+#      Pesos conservadores (vs planejado em v9: crazing=3.0):
+#      - Evitar overshooting: pesos muito agressivos podem desestabilizar
+#        o treinamento com dataset pequeno (1260 imagens)
+#      - inclusion e pitted_surface mantidos neutros para não regredir
+#
+#   2. auto_augment: ""  +  erasing: 0.0  (NOVO — explícito no train.py)
+#      v9/v10 foram contaminados por auto_augment=randaugment e erasing=0.4
+#      (defaults do Ultralytics 8.4.21 não passados explicitamente).
+#      Isso causou regressão de 0.772 → 0.734/0.758.
+#      Agora o train.py bloqueia esses valores.
+#
+# Mantido de v8 (tudo confirmado):
+#   - model: yolov8s.pt (YOLOv8m nunca superou Small neste dataset)
+#   - imgsz=896 (mais detalhe de textura durante treino)
+#   - batch=32 (L4, gradiente estável)
+#   - epochs=300, patience=60 (v8 usou 255/300)
+#   - iou=0.5 (NMS agressivo durante treino — resolve boxes sobrepostas do crazing)
+#   - scale=0.5 (+4pp em rolled-in_scale vs v5)
+#   - hsv_v=0.65 (jitter de brilho para discriminar textura vs background)
+#   - mosaic=0.0, copy_paste=0.0, dropout=0.0 (todos confirmados prejudiciais)
+#   - box=7.5, cls=0.7, dfl=1.5, lr0=0.001, lrf=0.005, optimizer=AdamW
+#   - shear=5.0, perspective=0.0005, degrees=10, translate=0.1
+#   - flipud=0.5, fliplr=0.5, hsv_h=0.015, hsv_s=0.7
+#
+# Referências (mAP@0.5 teste | Normal@640):
+#   v1  (YOLOv8s, base):                 0.733
+#   v5  (imgsz=768, scale=0.3):          0.769 | F1=0.743
+#   v6  (imgsz=896, batch=32):           0.767
+#   v7  (dropout=0.1):                   0.757
+#   v8  (iou=0.5, scale=0.5, hsv_v=0.65): 0.772  ← alvo a superar
+#   v9  (contaminado — auto_augment):    0.734
+#   v10 (contaminado — auto_augment):    0.758
+#
+# Hardware alvo: Google Colab — NVIDIA L4 (24 GB VRAM)
+# Estimativa: ~3h para 300 épocas (batch=32, imgsz=896, L4)
+# =============================================================================
+
+# Modelo base
+model: yolov8s.pt
+
+# Resolução de entrada
+imgsz: 896
+
+# Batch size
+batch: 32
+
+# Duração e early stopping
+epochs: 300
+patience: 60
+
+# Otimizador
+optimizer: AdamW
+lr0: 0.001
+lrf: 0.005
+momentum: 0.937
+weight_decay: 0.0005
+
+# Warm-up
+warmup_epochs: 3.0
+warmup_momentum: 0.8
+
+# Pesos da função de loss global
+box: 7.5
+cls: 0.7
+dfl: 1.5
+
+# NMS IoU durante treino — suprime boxes sobrepostas de crazing
+iou: 0.5
+
+# Pesos por classe na BCE loss de classificação
+# Ordem: [crazing, inclusion, patches, pitted_surface, rolled-in_scale, scratches]
+# Implementado via make_weighted_trainer em train.py
+class_weights: [2.5, 1.0, 0.8, 1.0, 2.0, 0.8]
+
+# Augmentation
+mosaic:       0.0     # DESABILITADO — prejudica classes de textura (v2/v3)
+mixup:        0.0     # DESABILITADO
+copy_paste:   0.0     # DESABILITADO
+auto_augment: ""      # DESABILITADO — default Ultralytics=randaugment causou regressão em v9/v10
+erasing:      0.0     # DESABILITADO — default Ultralytics=0.4 causou regressão em v9/v10
+
+hsv_h:        0.015
+hsv_s:        0.7
+hsv_v:        0.65    # jitter agressivo para textura vs background
+
+degrees:      10.0
+translate:    0.1
+scale:        0.5     # confirmado em v8: +4pp em rolled-in_scale
+shear:        5.0
+perspective:  0.0005
+
+flipud:       0.5
+fliplr:       0.5
+
+# Dropout — desabilitado (v7 confirmou regressão)
+dropout: 0.0
+
+# Reprodutibilidade
+seed: 42
+deterministic: true
+
+# Salvamento
+save: true
+save_period: -1
+
+verbose: true
+
+# workers=2: Colab Linux — sem problema de pagefile
+workers: 2

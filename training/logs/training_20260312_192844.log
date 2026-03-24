@@ -1,0 +1,13 @@
+2026-03-12 19:28:44 [INFO] Usando config: C:\Users\sadbr\Documents\defects_detection\archive_det\training\configs\hyperparameters_v3.yaml
+2026-03-12 19:28:44 [INFO] ============================================================
+2026-03-12 19:28:44 [INFO]   Pipeline de Treinamento — NEU-DET / YOLOv8
+2026-03-12 19:28:44 [INFO] ============================================================
+2026-03-12 19:28:44 [INFO] Modelo base      : yolov8m.pt
+2026-03-12 19:28:44 [INFO] Dataset YAML     : C:\Users\sadbr\Documents\defects_detection\archive_det\training\dataset.yaml
+2026-03-12 19:28:44 [INFO] Hiperparâmetros  : C:\Users\sadbr\Documents\defects_detection\archive_det\training\configs\hyperparameters_v3.yaml
+2026-03-12 19:28:44 [INFO] Épocas máximas   : 100
+2026-03-12 19:28:44 [INFO] Early stopping   : patience=30
+2026-03-12 19:28:44 [INFO] Batch size       : 4
+2026-03-12 19:28:44 [INFO] Resolução entrada: 640px
+2026-03-12 19:28:44 [INFO] Mosaic           : 0.0 (0.0 = desabilitado)
+2026-03-12 19:28:44 [INFO] Iniciando treinamento → pasta de saída: neu_det_20260312_192844

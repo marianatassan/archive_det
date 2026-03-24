@@ -1,0 +1,151 @@
+# =============================================================================
+# Hiperparâmetros de Treinamento — NEU-DET / YOLOv8 — Experimento v8
+# Projeto: Detecção de Defeitos Superficiais em Aço Laminado a Quente
+# TCC — Engenharia de Controle e Automação / IFES
+# =============================================================================
+#
+# Base: v5 (melhor resultado geral, mAP@0.5 teste=0.769, F1=0.743)
+#
+# Diagnóstico das classes difíceis (análise da matriz de confusão + imagens):
+#
+#   CRAZING (mAP@0.5=0.461):
+#     - 57% correto, 43% classificado como background (falso negativo)
+#     - O modelo detecta a região certa mas gera múltiplas boxes sobrepostas
+#       de baixa confiança em vez de uma ou duas boxes bem delimitadas
+#     - Causa: baixo contraste entre textura de crazing e background de aço
+#     - O IoU das boxes preditas com o ground truth frequentemente fica abaixo
+#       de 0.5, sendo contado como falso negativo mesmo com a região detectada
+#
+#   ROLLED-IN_SCALE (mAP@0.5=0.619):
+#     - 72% correto, 28% classificado como background (falso negativo)
+#     - Defeitos aparecem como manchas pequenas e espalhadas — o modelo
+#       detecta algumas mas perde as de menor contraste
+#     - Causa: variação de escala e baixo contraste com o fundo
+#
+#   CONCLUSÃO: o erro dominante é falso negativo para background,
+#   não confusão entre classes. A solução é aumentar a capacidade
+#   do modelo de discriminar textura sutil do fundo.
+#
+# Alterações em relação ao v5:
+#
+#   1. imgsz: 768 → 896
+#      Maior resolução preserva mais detalhe de textura após o upscale
+#      de 200px → 896px. Com mais pixels por defeito, o modelo aprende
+#      features de textura mais discriminativas entre defeito e background.
+#      Na L4 (24GB), batch=32 com imgsz=896 usa ~22GB — dentro do limite.
+#
+#   2. batch: 6 → 32
+#      v5 rodou no Colab T4/L4 com batch=6, desperdiçando VRAM.
+#      batch=32 com imgsz=896 na L4 é viável e confirmado em experimentos
+#      anteriores (v6, v7). Gradiente mais estável beneficia classes difíceis.
+#
+#   3. epochs: 200 → 300 | patience: 40 → 60
+#      v6 atingiu melhor resultado na época 255/300 — havia margem além
+#      de 200 épocas. v7 confirmou que 300 épocas são utilizadas.
+#
+#   4. hsv_v: 0.5 → 0.65
+#      Jitter de brilho mais agressivo para forçar o modelo a discriminar
+#      textura de crazing e rolled-in_scale independente da iluminação.
+#      Esses dois defeitos são exatamente os mais sensíveis à variação
+#      de brilho — uma mudança de iluminação os torna quase invisíveis.
+#
+#   5. scale: 0.3 → 0.5
+#      Variação de escala maior força o modelo a detectar rolled-in_scale
+#      (defeitos pequenos e espalhados) em diferentes tamanhos relativos.
+#      Também ajuda crazing ao expor o modelo a diferentes "densidades"
+#      do padrão de textura.
+#
+#   6. iou: 0.7 → 0.5
+#      Reduz o threshold de NMS durante o treino (de 0.7 para 0.5).
+#      Com NMS mais agressivo, boxes sobrepostas para a mesma região
+#      são suprimidas mais cedo — o modelo aprende a gerar boxes mais
+#      precisas e únicas em vez de múltiplas pequenas boxes sobrepostas.
+#      Diretamente endereça o problema de múltiplas boxes de baixa
+#      confiança observado nas predições de crazing.
+#
+# Mantido em relação ao v5 (confirmado que funciona):
+#   - model: yolov8s.pt (YOLOv8m nunca superou o Small neste dataset)
+#   - mosaic=0.0 (confirmado prejudicial por v2/v3)
+#   - copy_paste=0.0 (efeito neutro — v6 com 0.15 não superou v5)
+#   - dropout=0.0 (v7 confirmou que dropout prejudica com dataset pequeno)
+#   - box=7.5, cls=0.7, dfl=1.5
+#   - lr0=0.001, lrf=0.005, optimizer=AdamW
+#   - shear=5.0, perspective=0.0005, degrees=10, translate=0.1
+#   - flipud=0.5, fliplr=0.5, hsv_h=0.015, hsv_s=0.7
+#
+# Referências anteriores (mAP@0.5 teste | F1):
+#   v1 (YOLOv8s, augm. base):           0.733 | 0.691
+#   v2 (YOLOv8m, mosaic=0.5):           0.726 | 0.663
+#   v3 (YOLOv8m, sem mosaic):           0.721 | 0.690
+#   v4 (YOLOv8s, sem augmentation):     ~0.57 | ~0.57
+#   v5 (YOLOv8s, imgsz=768, b=6):       0.769 | 0.743  ← base
+#   v6 (YOLOv8s, imgsz=896, b=32):      0.767 | 0.729
+#   v7 (YOLOv8s, imgsz=768, dropout):   0.757 | 0.737
+#
+# Hardware alvo: Google Colab — NVIDIA L4 (24 GB VRAM)
+# Estimativa: ~3h para 300 épocas com batch=32 e imgsz=896 na L4
+# =============================================================================
+
+# Modelo base
+model: yolov8s.pt
+
+# Resolução de entrada — aumentada para melhor discriminação de textura
+imgsz: 896
+
+# Batch size — otimizado para L4 (24GB): imgsz=896 + batch=32 ≈ 22GB
+batch: 32
+
+# Duração e early stopping
+epochs: 300
+patience: 60
+
+# Otimizador
+optimizer: AdamW
+lr0: 0.001
+lrf: 0.005
+momentum: 0.937
+weight_decay: 0.0005
+
+# Warm-up
+warmup_epochs: 3.0
+warmup_momentum: 0.8
+
+# Pesos da função de loss
+box: 7.5
+cls: 0.7
+dfl: 1.5
+
+# NMS IoU durante treino — reduzido para suprimir boxes sobrepostas
+# e forçar o modelo a gerar boxes mais precisas para crazing
+iou: 0.5
+
+# Augmentation
+mosaic:      0.0    # DESABILITADO — prejudica classes de textura (v2/v3)
+mixup:       0.0    # DESABILITADO
+copy_paste:  0.0    # DESABILITADO — efeito neutro confirmado
+
+hsv_h:       0.015
+hsv_s:       0.7
+hsv_v:       0.65   # aumentado: discriminação de textura vs background
+
+degrees:     10.0
+translate:   0.1
+scale:       0.5    # aumentado: detecta rolled-in_scale em diferentes tamanhos
+shear:       5.0
+perspective: 0.0005
+
+flipud:      0.5
+fliplr:      0.5
+
+# Reprodutibilidade
+seed: 42
+deterministic: true
+
+# Salvamento
+save: true
+save_period: -1
+
+verbose: true
+
+# workers=2: Colab roda Linux — sem problema de pagefile do Windows
+workers: 2

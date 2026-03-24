@@ -1,0 +1,53 @@
+{
+  "meta": {
+    "split": "test",
+    "model": "C:\\Users\\sadbr\\Documents\\defects_detection\\archive_det\\training\\results\\neu_det_20260323_012431\\weights\\best.pt",
+    "timestamp": "2026-03-23T06:12:55.607112",
+    "dataset": "C:\\Users\\sadbr\\Documents\\defects_detection\\archive_det\\training\\dataset.yaml"
+  },
+  "global_metrics": {
+    "mAP_50": 0.758418,
+    "mAP_50_95": 0.408111,
+    "precision": 0.695808,
+    "recall": 0.761219,
+    "f1": 0.727045
+  },
+  "per_class_metrics": {
+    "crazing": {
+      "precision": 0.447815,
+      "recall": 0.505051,
+      "mAP_50": 0.415055,
+      "mAP_50_95": 0.144439
+    },
+    "inclusion": {
+      "precision": 0.726402,
+      "recall": 0.801219,
+      "mAP_50": 0.835304,
+      "mAP_50_95": 0.43405
+    },
+    "patches": {
+      "precision": 0.794531,
+      "recall": 0.850746,
+      "mAP_50": 0.919006,
+      "mAP_50_95": 0.574308
+    },
+    "pitted_surface": {
+      "precision": 0.783655,
+      "recall": 0.79907,
+      "mAP_50": 0.833928,
+      "mAP_50_95": 0.528109
+    },
+    "rolled-in_scale": {
+      "precision": 0.55999,
+      "recall": 0.692308,
+      "mAP_50": 0.626839,
+      "mAP_50_95": 0.272329
+    },
+    "scratches": {
+      "precision": 0.862454,
+      "recall": 0.918919,
+      "mAP_50": 0.920377,
+      "mAP_50_95": 0.49543
+    }
+  }
+}

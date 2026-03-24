@@ -6,6 +6,7 @@ Fluxo de execução:
   2. Lê hiperparâmetros de configs/hyperparameters.yaml
   3. Inicializa YOLOv8s com pesos pré-treinados no COCO (transfer learning)
   4. Executa fine-tuning com early stopping
+     - Se o YAML contiver class_weights, usa trainer customizado com BCE ponderada por classe
   5. Copia best.pt e last.pt para training/models/
   6. Registra log de treinamento em training/logs/
 
@@ -20,6 +21,7 @@ Pré-requisitos:
 
 import argparse
 import logging
+import os
 import shutil
 import sys
 from datetime import datetime
@@ -30,6 +32,11 @@ from ultralytics import YOLO
 
 # Força UTF-8 no stdout para compatibilidade com terminais Windows (cp1252)
 sys.stdout.reconfigure(encoding="utf-8")
+
+# Evita falha por fragmentação de memória CUDA em sessões longas (Colab/WSL).
+# expandable_segments permite ao alocador reutilizar segmentos não-contíguos
+# em vez de exigir um bloco livre de tamanho exato.
+os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
 
 # ---------------------------------------------------------------------------
 # Configuração de caminhos
@@ -56,6 +63,12 @@ def parse_args() -> argparse.Namespace:
         "--resume",
         action="store_true",
         help="Retoma o treino a partir do último checkpoint salvo em results/",
+    )
+    parser.add_argument(
+        "--config",
+        type=str,
+        default=None,
+        help="Caminho para o arquivo de hiperparâmetros (padrão: configs/hyperparameters.yaml)",
     )
     return parser.parse_args()
 
@@ -93,6 +106,59 @@ def setup_logger() -> logging.Logger:
     logger.addHandler(ch)
 
     return logger
+
+
+# ---------------------------------------------------------------------------
+# Trainer customizado com pesos por classe
+# ---------------------------------------------------------------------------
+
+def make_weighted_trainer(class_weights: list):
+    """
+    Cria um DetectionTrainer que aplica pesos por classe na BCE loss de classificação.
+
+    Os pesos amplificam a contribuição de classes difíceis (ex.: crazing=3.0,
+    rolled-in_scale=2.0) e atenuam classes já bem aprendidas (ex.: patches=0.8,
+    scratches=0.8), forçando o modelo a focar mais nas classes com menor mAP.
+
+    O truque: substitui compute_loss.bce por uma função wrapper que multiplica
+    a loss elemento a elemento por um vetor de pesos [n_classes], alargado para
+    [batch, n_classes, anchors] antes da multiplicação.
+
+    Args:
+        class_weights: lista de floats com um peso por classe, na ordem do
+                       dataset.yaml: [crazing, inclusion, patches,
+                                      pitted_surface, rolled-in_scale, scratches]
+
+    Returns:
+        Subclasse de DetectionTrainer pronta para ser passada como
+        trainer= em model.train().
+    """
+    import torch
+    from ultralytics.models.yolo.detect import DetectionTrainer
+
+    def _de_parallel(model):
+        """Desembrulha DataParallel/DistributedDataParallel se aplicável."""
+        return model.module if hasattr(model, "module") else model
+
+    class _WeightedTrainer(DetectionTrainer):
+        def criterion(self, preds, batch):
+            if not hasattr(self, "_compute_loss"):
+                from ultralytics.utils.loss import v8DetectionLoss
+                compute_loss = v8DetectionLoss(_de_parallel(self.model))
+                cw = torch.tensor(class_weights, dtype=torch.float32)
+                orig_bce = compute_loss.bce
+
+                def weighted_bce(pred, target):
+                    # pred/target shape: [batch * anchors, n_classes]
+                    # cw shape: [n_classes] → broadcast automático
+                    return orig_bce(pred, target) * cw.to(pred.device)
+
+                compute_loss.bce = weighted_bce
+                self._compute_loss = compute_loss
+
+            return self._compute_loss(preds, batch)
+
+    return _WeightedTrainer
 
 
 # ---------------------------------------------------------------------------
@@ -138,8 +204,9 @@ def train(logger: logging.Logger) -> tuple:
     Returns:
         (results, run_name) onde run_name identifica a pasta de saída.
     """
-    params   = load_hyperparameters(HYPER_YAML)
-    model_id = params.pop("model", "yolov8s.pt")
+    params        = load_hyperparameters(HYPER_YAML)
+    model_id      = params.pop("model",         "yolov8s.pt")
+    class_weights = params.pop("class_weights", None)
 
     logger.info("=" * 60)
     logger.info("  Pipeline de Treinamento — NEU-DET / YOLOv8")
@@ -152,6 +219,10 @@ def train(logger: logging.Logger) -> tuple:
     logger.info(f"Batch size       : {params.get('batch', 16)}")
     logger.info(f"Resolução entrada: {params.get('imgsz', 640)}px")
     logger.info(f"Mosaic           : {params.get('mosaic', 0.0)} (0.0 = desabilitado)")
+    if class_weights:
+        logger.info(f"Pesos por classe : {class_weights}  ← trainer customizado ativo")
+    else:
+        logger.info("Pesos por classe : não configurado — trainer padrão")
 
     # Inicializa o modelo — download automático se yolov8s.pt não existir localmente
     model    = YOLO(model_id)
@@ -159,7 +230,7 @@ def train(logger: logging.Logger) -> tuple:
 
     logger.info(f"Iniciando treinamento → pasta de saída: {run_name}")
 
-    results = model.train(
+    train_kwargs = dict(
         data    = str(DATASET_YAML),
         project = str(RESULTS_DIR),
         name    = run_name,
@@ -169,6 +240,7 @@ def train(logger: logging.Logger) -> tuple:
         patience     = params.get("patience",      20),
         batch        = params.get("batch",         16),
         imgsz        = params.get("imgsz",        640),
+        dropout      = params.get("dropout",       0.0),
 
         # Otimizador
         optimizer    = params.get("optimizer",    "AdamW"),
@@ -182,19 +254,32 @@ def train(logger: logging.Logger) -> tuple:
         warmup_momentum = params.get("warmup_momentum", 0.8),
 
         # Augmentation ajustada para inspeção industrial
-        mosaic      = params.get("mosaic",      0.0),   # desabilitado
-        mixup       = params.get("mixup",       0.0),   # desabilitado
-        copy_paste  = params.get("copy_paste",  0.0),
-        hsv_h       = params.get("hsv_h",       0.015),
-        hsv_s       = params.get("hsv_s",       0.7),
-        hsv_v       = params.get("hsv_v",       0.4),
-        degrees     = params.get("degrees",     10.0),
-        translate   = params.get("translate",   0.1),
-        scale       = params.get("scale",       0.3),
-        shear       = params.get("shear",       0.0),
-        perspective = params.get("perspective", 0.0),
-        flipud      = params.get("flipud",      0.5),
-        fliplr      = params.get("fliplr",      0.5),
+        mosaic       = params.get("mosaic",       0.0),   # desabilitado
+        mixup        = params.get("mixup",        0.0),   # desabilitado
+        copy_paste   = params.get("copy_paste",   0.0),
+        auto_augment = params.get("auto_augment", ""),    # desabilitado (padrão Ultralytics: randaugment)
+        erasing      = params.get("erasing",      0.0),   # desabilitado (padrão Ultralytics: 0.4)
+        hsv_h        = params.get("hsv_h",        0.015),
+        hsv_s        = params.get("hsv_s",        0.7),
+        hsv_v        = params.get("hsv_v",        0.4),
+        degrees      = params.get("degrees",      10.0),
+        translate    = params.get("translate",    0.1),
+        scale        = params.get("scale",        0.3),
+        shear        = params.get("shear",        0.0),
+        perspective  = params.get("perspective",  0.0),
+        flipud       = params.get("flipud",        0.5),
+        fliplr       = params.get("fliplr",        0.5),
+
+        # Pesos da função de loss global
+        box = params.get("box", 7.5),
+        cls = params.get("cls", 0.5),
+        dfl = params.get("dfl", 1.5),
+
+        # NMS IoU durante treino
+        iou = params.get("iou", 0.7),
+
+        # Multi-scale training (0.0 = desabilitado, 0.5 = ±50% do imgsz)
+        multi_scale = params.get("multi_scale", 0.0),
 
         # Reprodutibilidade e saída
         seed          = params.get("seed",          42),
@@ -202,7 +287,14 @@ def train(logger: logging.Logger) -> tuple:
         save          = params.get("save",          True),
         save_period   = params.get("save_period",   -1),
         verbose       = params.get("verbose",       True),
+        workers       = params.get("workers",        8),
     )
+
+    # Usa trainer customizado se class_weights estiver definido no YAML
+    if class_weights:
+        train_kwargs["trainer"] = make_weighted_trainer(class_weights)
+
+    results = model.train(**train_kwargs)
 
     logger.info("Treinamento finalizado.")
     return results, run_name
@@ -244,7 +336,11 @@ def resume_train(logger: logging.Logger) -> tuple:
     logger.info(f"Run        : {run_name}")
 
     model   = YOLO(str(last_pt))
-    results = model.train(resume=True)
+    results = model.train(
+        resume  = True,
+        project = str(RESULTS_DIR),
+        name    = run_name,
+    )
 
     logger.info("Treinamento retomado e finalizado.")
     return results, run_name
@@ -278,6 +374,11 @@ def copy_best_models(run_name: str, logger: logging.Logger):
 def main():
     args   = parse_args()
     logger = setup_logger()
+
+    global HYPER_YAML
+    if args.config:
+        HYPER_YAML = Path(args.config).resolve()
+        logger.info(f"Usando config: {HYPER_YAML}")
 
     if args.resume:
         results, run_name = resume_train(logger)
