@@ -1,0 +1,16 @@
+# Modelos treinados — muito grandes para o GitHub (>100 MB)
+*.pt
+*.pth
+
+# Caches gerados automaticamente pelo Ultralytics
+*.cache
+
+# Logs e artefatos temporários
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+
+# Ambientes virtuais
+venv/
+.env/
